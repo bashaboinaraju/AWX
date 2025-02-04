@@ -1,0 +1,39 @@
+- name: Check SQL Server Health & Utilization
+  hosts: windows
+  gather_facts: no
+  tasks:
+
+    - name: Check Database Space Utilization
+      win_shell: |
+        $query = "
+        SELECT DB_NAME(database_id) AS DatabaseName,
+               SUM(size * 8 / 1024) AS SizeMB
+        FROM sys.master_files
+        GROUP BY database_id;"
+        Invoke-Sqlcmd -Query $query -ServerInstance "20.102.105.60" -Database "master"
+      register: db_space
+    - debug: var=db_space.stdout_lines
+
+    - name: Check Database Health
+      win_shell: |
+        Invoke-Sqlcmd -Query "DBCC CHECKDB WITH NO_INFOMSGS;" -ServerInstance "20.102.105.60" -Database "master"
+      register: db_health
+    - debug: var=db_health.stdout_lines
+
+    - name: Check Deadlocks
+      win_shell: |
+        $query = "SELECT COUNT(*) AS DeadlockCount FROM sys.dm_tran_locks WHERE request_status = 'WAIT';"
+        Invoke-Sqlcmd -Query $query -ServerInstance "20.102.105.60" -Database "master"
+      register: deadlocks
+    - debug: var=deadlocks.stdout_lines
+
+    - name: Check SQL Job Activities
+      win_shell: |
+        $query = "
+        SELECT job.name, job.enabled, activity.run_requested_date, activity.stop_execution_date, activity.run_outcome
+        FROM msdb.dbo.sysjobs AS job
+        LEFT JOIN msdb.dbo.sysjobactivity AS activity ON job.job_id = activity.job_id
+        WHERE activity.run_requested_date IS NOT NULL;"
+        Invoke-Sqlcmd -Query $query -ServerInstance "20.102.105.60" -Database "msdb"
+      register: job_activities
+    - debug: var=job_activities.stdout_lines
