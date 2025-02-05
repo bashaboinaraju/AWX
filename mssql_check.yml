@@ -1,5 +1,5 @@
 - name: Check SQL Server Health & Utilization
-  hosts: 10.112.0.10
+  hosts: 10.112.0.10 
   gather_facts: no
   tasks:
 
