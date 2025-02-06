@@ -3,7 +3,7 @@
   hosts: all
   gather_facts: no
   vars:
-    sql_instance: all
+    sql_instance: 20.102.105.60
     sql_user: "rajusql"
     sql_password: "Raju@2002"
 
