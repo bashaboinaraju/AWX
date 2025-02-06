@@ -3,18 +3,24 @@
   hosts: all
   gather_facts: no
   vars:
-    ansible_user: "raju"
-    ansible_password: "Ascendion@9$"
-    ansible_port: 5986
-    ansible_connection: winrm
-    ansible_winrm_transport: ntlm
-    ansible_winrm_server_cert_validation: ignore
     sql_server: "20.102.105.60"
     sql_database: "master"
     sql_username: "rajusql"
     sql_password: "Raju@2002"
 
   tasks:
+    - name: Enable and Configure WinRM
+      win_shell: |
+        winrm quickconfig -q
+        Set-Service -Name WinRM -StartupType Automatic
+        Start-Service -Name WinRM
+        New-NetFirewallRule -Name "WinRM_HTTPS" -DisplayName "WinRM over HTTPS" -Enabled True -Direction Inbound -Protocol TCP -Action Allow -LocalPort 5986
+      register: winrm_config
+
+    - name: Display WinRM Configuration Output
+      debug:
+        msg: "{{ winrm_config.stdout_lines }}"
+
     - name: Check Database Space Utilization
       win_shell: |
         $query = @"
