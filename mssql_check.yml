@@ -1,6 +1,6 @@
 ---
 - name: MS SQL Server Monitoring
-  hosts: windows_sql_servers
+  hosts: all
   gather_facts: no
   vars:
     ansible_user: "raju"
