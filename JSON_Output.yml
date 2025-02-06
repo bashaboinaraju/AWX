@@ -59,7 +59,7 @@
     - name: Display Results
       debug:
         msg: |
-          Database Space Utilization: {{ db_space.stdout | from_json | default('No output') }}
-          Database Health: {{ db_health.stdout | from_json | default('No output') }}
-          Deadlocks: {{ deadlocks.stdout | from_json | default('No output') }}
-          SQL Agent Job Activities: {{ job_activities.stdout | from_json | default('No output') }}
+          Database Space Utilization: {{ db_space.stdout | from_json | default('No output') | to_nice_json }}
+          Database Health: {{ db_health.stdout | from_json | default('No output') | to_nice_json }}
+          Deadlocks: {{ deadlocks.stdout | from_json | default('No output') | to_nice_json }}
+          SQL Agent Job Activities: {{ job_activities.stdout | from_json | default('No output') | to_nice_json }}
