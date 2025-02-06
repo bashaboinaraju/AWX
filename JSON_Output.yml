@@ -63,3 +63,12 @@
           - "Database Health: {{ db_health.stdout | from_json | default('No output') }}"
           - "Deadlocks: {{ deadlocks.stdout | from_json | default('No output') }}"
           - "SQL Agent Job Activities: {{ job_activities.stdout | from_json | default('No output') }}"
+
+    - name: Check if stdout is JSON and print
+      debug:
+        msg: |
+          {% if db_space.stdout | from_json is defined %}
+            Valid JSON output for Database Space: {{ db_space.stdout | from_json }}
+          {% else %}
+            No valid JSON for Database Space.
+          {% endif %}
