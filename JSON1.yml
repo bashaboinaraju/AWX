@@ -54,10 +54,37 @@
 
     - name: Clean and Structure Results
       set_fact:
-        db_space_clean: "{{ db_space.stdout | regex_replace('\\r\\n', ', ') }}"
-        db_health_clean: "{{ db_health.stdout | regex_replace('\\r\\n', ', ') }}"
-        deadlocks_clean: "{{ deadlocks.stdout | regex_replace('\\r\\n', ', ') }}"
-        job_activities_clean: "{{ job_activities.stdout | regex_replace('\\r\\n', ', ') }}"
+        db_space_clean: |
+          {% set result = db_space.stdout.splitlines() %}
+          {% for line in result %}
+            {% if line.strip() %}
+              - {{ line }}
+            {% endif %}
+          {% endfor %}
+          
+        db_health_clean: |
+          {% set result = db_health.stdout.splitlines() %}
+          {% for line in result %}
+            {% if line.strip() %}
+              - {{ line }}
+            {% endif %}
+          {% endfor %}
+
+        deadlocks_clean: |
+          {% set result = deadlocks.stdout.splitlines() %}
+          {% for line in result %}
+            {% if line.strip() %}
+              - {{ line }}
+            {% endif %}
+          {% endfor %}
+
+        job_activities_clean: |
+          {% set result = job_activities.stdout.splitlines() %}
+          {% for line in result %}
+            {% if line.strip() %}
+              - {{ line }}
+            {% endif %}
+          {% endfor %}
 
     - name: Display Structured Results
       debug:
