@@ -1,6 +1,6 @@
 ---
 - name: Check MS SQL Server Health
-  hosts: all
+  hosts: windows  # Ensure your inventory group is correctly set
   gather_facts: no
   vars:
     sql_instance: "20.102.105.60"
@@ -8,7 +8,28 @@
     sql_password: "Raju@2002"
 
   tasks:
-    
+    - name: Verify PowerShell is Installed
+      win_command: powershell.exe -Command "Write-Output 'PowerShell is working'"
+      register: powershell_check
+      ignore_errors: yes
+
+    - debug:
+        msg: "PowerShell Test Output: {{ powershell_check.stdout }}"
+
+    - name: Verify Invoke-Sqlcmd is Available
+      win_shell: "if (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue) { Write-Output 'Available' } else { Write-Output 'Not Found' }"
+      register: sqlcmd_check
+
+    - debug:
+        msg: "Invoke-Sqlcmd Availability: {{ sqlcmd_check.stdout }}"
+
+    - name: Ensure Invoke-Sqlcmd is Installed
+      win_shell: |
+        if (-not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) {
+          Install-Module -Name SqlServer -Force -AllowClobber
+          Import-Module SqlServer
+        }
+      when: sqlcmd_check.stdout != "Available"
 
     - name: Get Database Space Utilization
       win_shell: |
