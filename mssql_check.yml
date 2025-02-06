@@ -7,16 +7,6 @@
     sql_user: "rajusql"
     sql_password: "Raju@2002"
 
-  tasks:
-    - name: Verify PowerShell and Invoke-Sqlcmd Availability
-      win_shell: "Get-Command Invoke-Sqlcmd"
-      register: sqlcmd_check
-      ignore_errors: no
-
-    - name: Debug PowerShell SQLCmd Availability
-      debug:
-        var: sqlcmd_check.stdout
-
     - name: Get Database Space Utilization
       win_shell: |
         try {
