@@ -1,58 +1,68 @@
 ---
-- name: Check MS SQL Server Health and Space Utilization
+- name: Check MS SQL Server Health
   hosts: 10.112.0.10
   gather_facts: no
   vars:
     sql_instance: "10.112.0.10"
-    sql_user: "rajusql"  # Replace with your SQL Server username
-    sql_password: "Raju@2002"  # Replace with your SQL Server password
+    sql_user: "rajusql"
+    sql_password: "Raju@2002"
+
   tasks:
     - name: Get Database Space Utilization
       win_shell: |
-        Invoke-Sqlcmd -Query "
-        SELECT DB_NAME(database_id) AS DatabaseName,
-               (size * 8) / 1024 AS SizeMB
-        FROM sys.master_files
-        WHERE type = 0;" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}"
+        try {
+          $query = "SELECT DB_NAME(database_id) AS DatabaseName, (size * 8) / 1024 AS SizeMB FROM sys.master_files WHERE type = 0;"
+          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate
+        } catch {
+          Write-Output "Error: $_"
+        }
       register: db_space
       ignore_errors: yes
 
     - name: Get Database Health
       win_shell: |
-        Invoke-Sqlcmd -Query "
-        SELECT name, state_desc, recovery_model_desc 
-        FROM sys.databases;" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}"
+        try {
+          $query = "SELECT name, state_desc, recovery_model_desc FROM sys.databases;"
+          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate
+        } catch {
+          Write-Output "Error: $_"
+        }
       register: db_health
       ignore_errors: yes
 
-    - name: Check Deadlocks
+    - name: Check for Deadlocks
       win_shell: |
-        Invoke-Sqlcmd -Query "
-        DBCC TRACEON(1222, -1);
-        SELECT * FROM sys.dm_exec_requests WHERE blocking_session_id <> 0;" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}"
+        try {
+          $query = "SELECT COUNT(*) AS Deadlocks FROM sys.dm_tran_locks WHERE request_status = 'WAIT';"
+          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate
+        } catch {
+          Write-Output "Error: $_"
+        }
       register: deadlocks
       ignore_errors: yes
-    
+
     - name: Get SQL Agent Job Activities
       win_shell: |
-        Invoke-Sqlcmd -Query "
-        SELECT job_id, name, enabled 
-        FROM msdb.dbo.sysjobs;" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}"
+        try {
+          $query = "SELECT job_id, name, last_run_outcome, enabled FROM msdb.dbo.sysjobs;"
+          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate
+        } catch {
+          Write-Output "Error: $_"
+        }
       register: job_activities
       ignore_errors: yes
 
-    - name: Show Database Space Utilization
-      debug:
-        msg: "{{ db_space.stdout_lines }}"
+    - name: Clean and Structure Results
+      set_fact:
+        db_space_clean: "{{ db_space.stdout | regex_replace('\\r\\n', ', ') }}"
+        db_health_clean: "{{ db_health.stdout | regex_replace('\\r\\n', ', ') }}"
+        deadlocks_clean: "{{ deadlocks.stdout | regex_replace('\\r\\n', ', ') }}"
+        job_activities_clean: "{{ job_activities.stdout | regex_replace('\\r\\n', ', ') }}"
 
-    - name: Show Database Health
+    - name: Display Structured Results
       debug:
-        msg: "{{ db_health.stdout_lines }}"
-
-    - name: Show Deadlocks Information
-      debug:
-        msg: "{{ deadlocks.stdout_lines }}"
-
-    - name: Show SQL Agent Job Activities
-      debug:
-        msg: "{{ job_activities.stdout_lines }}"
+        msg:
+          - "Database Space Utilization: {{ db_space_clean | default('No output') }}"
+          - "Database Health: {{ db_health_clean | default('No output') }}"
+          - "Deadlocks: {{ deadlocks_clean | default('No output') }}"
+          - "SQL Agent Job Activities: {{ job_activities_clean | default('No output') }}"
