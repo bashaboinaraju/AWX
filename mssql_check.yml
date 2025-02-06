@@ -7,6 +7,9 @@
     sql_user: "rajusql"
     sql_password: "Raju@2002"
 
+  tasks:
+    
+
     - name: Get Database Space Utilization
       win_shell: |
         try {
