@@ -12,7 +12,7 @@
       win_shell: |
         try {
           $query = "SELECT DB_NAME(database_id) AS DatabaseName, (size * 8) / 1024 AS SizeMB FROM sys.master_files WHERE type = 0;"
-          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate $true | ConvertTo-Json
+          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate 
         } catch {
           Write-Output "Error: $_"
         }
@@ -23,8 +23,7 @@
       win_shell: |
         try {
           $query = "SELECT name, state_desc, recovery_model_desc FROM sys.databases;"
-          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate $true | ConvertTo-Json
-        } catch {
+          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate 
           Write-Output "Error: $_"
         }
       register: db_health
@@ -34,7 +33,7 @@
       win_shell: |
         try {
           $query = "SELECT COUNT(*) AS Deadlocks FROM sys.dm_tran_locks WHERE request_status = 'WAIT';"
-          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate $true | ConvertTo-Json
+          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate 
         } catch {
           Write-Output "Error: $_"
         }
@@ -45,7 +44,7 @@
       win_shell: |
         try {
           $query = "SELECT job_id, name, last_run_outcome, enabled FROM msdb.dbo.sysjobs;"
-          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate $true | ConvertTo-Json
+          Invoke-Sqlcmd -Query $query -ServerInstance '{{ sql_instance }}' -Username '{{ sql_user }}' -Password '{{ sql_password }}' -TrustServerCertificate 
         } catch {
           Write-Output "Error: $_"
         }
