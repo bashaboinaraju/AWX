@@ -56,10 +56,17 @@
       register: job_activities
       ignore_errors: yes
 
-    - name: Display Results in Proper Ansible Format
+    - name: Convert Outputs to JSON
+      set_fact:
+        db_space_fact: "{{ db_space.stdout | from_json | default([]) }}"
+        db_health_fact: "{{ db_health.stdout | from_json | default([]) }}"
+        deadlocks_fact: "{{ deadlocks.stdout | from_json | default({}) }}"
+        job_activities_fact: "{{ job_activities.stdout | from_json | default([]) }}"
+
+    - name: Display Results in Proper Ansible & AWX Format
       debug:
         msg:
-          Database Space Utilization: "{{ db_space.stdout | from_json | default([]) }}"
-          Database Health: "{{ db_health.stdout | from_json | default([]) }}"
-          Deadlocks: "{{ deadlocks.stdout | from_json | default({}) }}"
-          SQL Agent Job Activities: "{{ job_activities.stdout | from_json | default([]) }}"
+          Database_Space_Utilization: "{{ db_space_fact }}"
+          Database_Health: "{{ db_health_fact }}"
+          Deadlocks: "{{ deadlocks_fact }}"
+          SQL_Agent_Job_Activities: "{{ job_activities_fact }}"
