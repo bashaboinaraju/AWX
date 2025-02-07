@@ -37,7 +37,7 @@
         try {
           $query = "SELECT COUNT(*) AS Deadlocks FROM sys.dm_tran_locks WHERE request_status = 'WAIT';"
           $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress
-          if (-not $result) { Write-Output '{"Deadlocks": 0}' } else { Write-Output $result }
+          if (-not $result) { Write-Output '[]' } else { Write-Output $result }
         } catch {
           Write-Output '{"Deadlocks": "Error"}'
         }
