@@ -12,7 +12,8 @@
       win_shell: |
         try {
           $query = "SELECT DB_NAME(database_id) AS DatabaseName, (size * 8) / 1024 AS SizeMB FROM sys.master_files WHERE type = 0;"
-          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | Select-Object DatabaseName, SizeMB | ConvertTo-Json -Compress -Raw
+          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | 
+                    Select-Object DatabaseName, SizeMB | ConvertTo-Json -Depth 3 -Compress -Raw
           if (-not $result) { Write-Output '[]' } else { Write-Output $result }
         } catch {
           Write-Output '[]'
@@ -24,7 +25,8 @@
       win_shell: |
         try {
           $query = "SELECT name, state_desc, recovery_model_desc FROM sys.databases;"
-          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | Select-Object name, state_desc, recovery_model_desc | ConvertTo-Json -Compress -Raw
+          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | 
+                    Select-Object name, state_desc, recovery_model_desc | ConvertTo-Json -Depth 3 -Compress -Raw
           if (-not $result) { Write-Output '[]' } else { Write-Output $result }
         } catch {
           Write-Output '[]'
@@ -36,7 +38,8 @@
       win_shell: |
         try {
           $query = "SELECT COUNT(*) AS Deadlocks FROM sys.dm_tran_locks WHERE request_status = 'WAIT';"
-          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | Select-Object Deadlocks | ConvertTo-Json -Compress -Raw
+          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | 
+                    Select-Object Deadlocks | ConvertTo-Json -Depth 3 -Compress -Raw
           if (-not $result) { Write-Output '{"Deadlocks": 0}' } else { Write-Output $result }
         } catch {
           Write-Output '{"Deadlocks": 0}'
@@ -48,7 +51,8 @@
       win_shell: |
         try {
           $query = "SELECT job_id, name, last_run_outcome, enabled FROM msdb.dbo.sysjobs;"
-          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | Select-Object job_id, name, last_run_outcome, enabled | ConvertTo-Json -Compress -Raw
+          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | 
+                    Select-Object job_id, name, last_run_outcome, enabled | ConvertTo-Json -Depth 3 -Compress -Raw
           if (-not $result) { Write-Output '[]' } else { Write-Output $result }
         } catch {
           Write-Output '[]'
@@ -58,16 +62,12 @@
 
     - name: Convert Outputs to JSON
       set_fact:
-        result_json: >-
-          {{
-            {
-              "Database_Space_Utilization": db_space.stdout | from_json | default([]),
-              "Database_Health": db_health.stdout | from_json | default([]),
-              "Deadlocks": deadlocks.stdout | from_json | default({}),
-              "SQL_Agent_Job_Activities": job_activities.stdout | from_json | default([])
-            } | to_nice_json
-          }}
+        result_json:
+          Database_Space_Utilization: "{{ db_space.stdout | from_json | default([]) }}"
+          Database_Health: "{{ db_health.stdout | from_json | default([]) }}"
+          Deadlocks: "{{ deadlocks.stdout | from_json | default({}) }}"
+          SQL_Agent_Job_Activities: "{{ job_activities.stdout | from_json | default([]) }}"
 
     - name: Display Clean JSON Output (AWX Compatible)
       debug:
-        var: result_json
+        msg: "{{ result_json | to_nice_json }}"
