@@ -15,7 +15,7 @@
           $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress
           Write-Output $result
         } catch {
-          Write-Output "{'Error': '$($_.Exception.Message)'}"
+          Write-Output '{"Error": "' + $_.Exception.Message + '"}'
         }
       register: db_space
       ignore_errors: yes
@@ -27,7 +27,7 @@
           $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress
           Write-Output $result
         } catch {
-          Write-Output "{'Error': '$($_.Exception.Message)'}"
+          Write-Output '{"Error": "' + $_.Exception.Message + '"}'
         }
       register: db_health
       ignore_errors: yes
@@ -39,7 +39,7 @@
           $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress
           Write-Output $result
         } catch {
-          Write-Output "{'Error': '$($_.Exception.Message)'}"
+          Write-Output '{"Error": "' + $_.Exception.Message + '"}'
         }
       register: deadlocks
       ignore_errors: yes
@@ -51,15 +51,15 @@
           $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress
           Write-Output $result
         } catch {
-          Write-Output "{'Error': '$($_.Exception.Message)'}"
+          Write-Output '{"Error": "' + $_.Exception.Message + '"}'
         }
       register: job_activities
       ignore_errors: yes
 
-    - name: Display Results
+    - name: Display Results in Proper Ansible Format
       debug:
         msg:
-          - "Database Space Utilization: {{ db_space.stdout | from_json | default({'Error': 'No output'}) }}"
-          - "Database Health: {{ db_health.stdout | from_json | default({'Error': 'No output'}) }}"
-          - "Deadlocks: {{ deadlocks.stdout | from_json | default({'Error': 'No output'}) }}"
-          - "SQL Agent Job Activities: {{ job_activities.stdout | from_json | default({'Error': 'No output'}) }}"
+          Database Space Utilization: "{{ db_space.stdout | from_json | default([]) }}"
+          Database Health: "{{ db_health.stdout | from_json | default([]) }}"
+          Deadlocks: "{{ deadlocks.stdout | from_json | default({}) }}"
+          SQL Agent Job Activities: "{{ job_activities.stdout | from_json | default([]) }}"
