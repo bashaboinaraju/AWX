@@ -68,6 +68,7 @@
             } | to_nice_json
           }}
 
-    - name: Display Clean JSON Output (AWX Compatible)
+        - name: Display Clean JSON Output (AWX Compatible)
       debug:
-        msg: "{{ result_json }}"
+        var: result_json
+
