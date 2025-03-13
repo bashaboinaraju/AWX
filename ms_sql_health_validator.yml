@@ -76,7 +76,7 @@
         } catch {
           Write-Output '[{"Error": "' + $_.Exception.Message + '"}]'
         }
-    
+     
  
     - name: Convert Outputs to JSON
       set_fact:
@@ -85,10 +85,11 @@
         deadlocks_fact: "{{ deadlocks.stdout | default('[]') | from_json }}"
         job_activities_fact: "{{ job_activities.stdout | default('[]') | from_json }}"
         disk_space_fact: "{{ disk_space.stdout | default('[]') | from_json }}"
-   
+       
  
-   
- 
+    - name: Display SQL Server Issues and Troubleshooting Suggestions
+      debug:
+        msg: |
           🩺 **Database Health Check:**
           {% if db_health_fact is defined and db_health_fact | length > 0 %}
             {% for item in db_health_fact %}
