@@ -9,7 +9,12 @@
   tasks:
     - name: Get Disk Space Utilization
       win_shell: |
-        Get-WmiObject Win32_LogicalDisk | Select-Object DeviceID, VolumeName, Size, FreeSpace | ConvertTo-Json
+        try {
+          $result = Get-WmiObject Win32_LogicalDisk | Select-Object DeviceID, VolumeName, Size, FreeSpace | ConvertTo-Json -Compress
+          if (-not $result) { Write-Output '[]' } else { Write-Output $result }
+        } catch {
+          Write-Output '[{"Error": "Failed to retrieve disk info"}]'
+        }
       register: disk_space
       ignore_errors: yes
     
@@ -67,14 +72,18 @@
       register: sql_logs
       ignore_errors: yes
     
-    # - name: Convert Outputs to JSON
-    #   set_fact:
-    #     disk_space_fact: "{{ (disk_space.stdout | from_json) if disk_space.stdout is not none else [] }}"
-    #     db_space_fact: "{{ (db_space.stdout | from_json) if db_space.stdout is not none else [] }}"
-    #     db_health_fact: "{{ (db_health.stdout | from_json) if db_health.stdout is not none else [] }}"
-    #     deadlocks_fact: "{{ (deadlocks.stdout | from_json) if deadlocks.stdout is not none else {'Deadlocks': 0} }}"
-    #     job_activities_fact: "{{ (job_activities.stdout | from_json) if job_activities.stdout is not none else [] }}"
-    #     sql_logs_fact: "{{ sql_logs.stdout_lines | default([]) }}"
+    - name: Convert Outputs to JSON
+      set_fact:
+        disk_space_fact: "{{ (disk_space.stdout | from_json) if disk_space.stdout is not none else [] }}"
+        db_space_fact: "{{ (db_space.stdout | from_json) if db_space.stdout is not none else [] }}"
+        db_health_fact: "{{ (db_health.stdout | from_json) if db_health.stdout is not none else [] }}"
+        deadlocks_fact: "{{ (deadlocks.stdout | from_json) if deadlocks.stdout is not none else {'Deadlocks': 0} }}"
+        job_activities_fact: "{{ (job_activities.stdout | from_json) if job_activities.stdout is not none else [] }}"
+        sql_logs_fact: "{{ sql_logs.stdout_lines | default([]) }}"
+    
+    - name: Ensure disk_space_fact is defined
+      set_fact:
+        disk_space_fact: "{{ disk_space_fact | default([]) }}"
     
     - name: Display Formatted Results
       debug:
