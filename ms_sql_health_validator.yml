@@ -69,6 +69,63 @@
         }
       register: job_activities
       ignore_errors: yes
+
+    
+    
+    - name: Check SQL Server Error Log for Issues
+      win_shell: |
+        try {
+          $query = @"
+            SELECT TOP 10 logdate, processinfo, text
+            FROM sys.fn_get_audit_file('C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\Log\*.sqlaudit', DEFAULT, DEFAULT)
+            WHERE text LIKE '%error%' OR text LIKE '%failed%' OR text LIKE '%severity%'
+            ORDER BY logdate DESC;
+          "@
+          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress -Depth 3
+          if (-not $result) { Write-Output '[]' } else { Write-Output $result }
+        } catch {
+          Write-Output '[{"Error": "' + $_.Exception.Message + '"}]'
+        }
+      register: sql_errors
+      ignore_errors: yes
+
+    - name: Convert Error Log Output to JSON
+      set_fact:
+        sql_errors_fact: "{{ sql_errors.stdout | default('[]') | from_json }}"
+
+    - name: Display SQL Server Issues and Troubleshooting Suggestions
+      debug:
+        msg: |
+          ⚠️ **SQL Server Errors Detected:**
+          {% if sql_errors_fact is defined and sql_errors_fact | length > 0 %}
+            {% for error in sql_errors_fact %}
+              - **Timestamp:** {{ error.logdate | default("N/A") }}
+              - **Process:** {{ error.processinfo | default("N/A") }}
+              - **Error Message:** {{ error.text | default("N/A") }}
+              
+              **🔧 Suggested Troubleshooting Steps:**
+              {% if 'login failed' in error.text | lower %}
+                - Check SQL login credentials.
+                - Verify if the login exists and is enabled (`SELECT * FROM sys.sql_logins`).
+                - Ensure correct authentication mode is set (`SELECT SERVERPROPERTY('IsIntegratedSecurityOnly')`).
+              {% elif 'deadlock' in error.text | lower %}
+                - Identify deadlock victims (`SELECT * FROM sys.dm_tran_locks`).
+                - Review long-running transactions.
+                - Optimize indexing and query performance.
+              {% elif 'severity 17' in error.text | lower %}
+                - Indicates insufficient resources. Check available memory and disk space.
+                - Review running processes with `sys.dm_exec_requests`.
+              {% elif 'severity 20' in error.text | lower %}
+                - Fatal error detected. Check error log for more details.
+                - Restart SQL Server if necessary.
+              {% else %}
+                - Review the error message and check SQL documentation for resolution.
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            ✅ No critical errors found in the SQL Server logs.
+          {% endif %}
+
     - name: Convert Outputs to JSON
       set_fact:
         db_space_fact: "{{ (db_space.stdout | from_json) if db_space.stdout is not none else [] }}"
