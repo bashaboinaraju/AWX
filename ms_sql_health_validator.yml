@@ -30,8 +30,51 @@
       register: db_space
       ignore_errors: yes
     
+    
+    - name: Get Database Health
+      win_shell: |
+        try {
+          $query = "SELECT db.name AS DatabaseName,db.state_desc AS Status, (SELECT COUNT(*) FROM sys.dm_exec_requests r WHERE r.database_id = db.database_id) AS ActiveRequests,(SELECT COUNT(*) FROM sys.dm_exec_sessions s WHERE s.is_user_process = 1 AND s.database_id = db.database_id) AS ActiveUserConnections,(SELECT COUNT(*) FROM sys.dm_os_waiting_tasks w JOIN sys.dm_exec_sessions s ON w.session_id = s.session_id WHERE s.database_id = db.database_id) AS PendingRequests, (SELECT COUNT(*) FROM sys.dm_os_performance_counters WHERE counter_name = 'Processor Queue Length') AS CPUQueueLength FROM sys.databases db;"
+          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress -Depth 3
+          if (-not $result) { Write-Output '[]' } else { Write-Output $result }
+        } catch {
+          Write-Output '[{"Error": "' + $_.Exception.Message + '"}]'
+        }
+      register: db_health
+      ignore_errors: yes
+    - name: Check for Deadlocks
+      win_shell: |
+        try {
+          $query = "SELECT COUNT(*) AS Deadlocks FROM sys.dm_tran_locks WHERE request_status = 'WAIT';"
+          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress
+          if (-not $result) { Write-Output '[{"Deadlocks": 0}]' } else { Write-Output $result }
+        } catch {
+          Write-Output '[{"Deadlocks": "Error"}]'
+        }
+      register: deadlocks
+      ignore_errors: yes
+    - name: Get SQL Agent Job Activities
+      win_shell: |
+        try {
+          $query = "SELECT j.job_id, j.name, j.enabled,
+               MAX(h.run_status) AS last_run_status
+               FROM msdb.dbo.sysjobs j
+               LEFT JOIN msdb.dbo.sysjobhistory h ON j.job_id = h.job_id
+               WHERE h.step_id = 0
+               GROUP BY j.job_id, j.name, j.enabled;"
+          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress -Depth 3
+          if (-not $result) { Write-Output '[]' } else { Write-Output $result }
+        } catch {
+          Write-Output '[{"Error": "' + $_.Exception.Message + '"}]'
+        }
+      register: job_activities
+      ignore_errors: yes
     - name: Convert Outputs to JSON
       set_fact:
+        db_space_fact: "{{ (db_space.stdout | from_json) if db_space.stdout is not none else [] }}"
+        db_health_fact: "{{ (db_health.stdout | from_json) if db_health.stdout is not none else [] }}"
+        deadlocks_fact: "{{ (deadlocks.stdout | from_json) if deadlocks.stdout is not none else {'Deadlocks': 0} }}"
+        job_activities_fact: "{{ (job_activities.stdout | from_json) if job_activities.stdout is not none else [] }}"
         disk_space_fact: "{{ disk_space.stdout | default('[]') | from_json }}"
         db_space_fact: "{{ db_space.stdout | default('[]') | from_json }}"
     
