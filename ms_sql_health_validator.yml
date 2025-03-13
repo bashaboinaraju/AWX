@@ -56,6 +56,14 @@
         }
       register: job_activities
       ignore_errors: yes
+    - name: Debug Raw Outputs
+      debug:
+        msg:
+          db_space_raw: "{{ db_space.stdout }}"
+          db_health_raw: "{{ db_health.stdout }}"
+          deadlocks_raw: "{{ deadlocks.stdout }}"
+          job_activities_raw: "{{ job_activities.stdout }}"
+
     - name: Display Formatted Results in JSON
       debug:
         msg:
