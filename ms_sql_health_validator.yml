@@ -9,6 +9,53 @@
     sql_port: 1433
 
   tasks:
+    - name: Check if host is reachable
+      win_shell: |
+        try {
+          $targetHost = "{{ inventory_hostname }}"
+          $pingResult = Test-Connection -ComputerName $targetHost -Count 1 -Quiet
+          if ($pingResult) {
+            Write-Output '[{"Status": "Success", "Message": "Host is up and reachable"}]'
+          } else {
+            Write-Output '[{"Status": "Failed", "Message": "Host is not reachable"}]'
+          }
+        } catch {
+          Write-Output '[{"Status": "Error", "Message": "' + $_.Exception.Message + '"}]'
+        }
+      register: host_check
+      ignore_errors: yes
+    - name: Display Host Reachability Results
+      debug:
+        msg: |
+          🖥️ Host Status Check:
+          {% if host_check.stdout is defined %}
+            {% set host_status = host_check.stdout | from_json %}
+            {% if host_status[0].Status == "Success" %}
+              ✅ {{ host_status[0].Message }}
+            {% else %}
+              ❌ {{ host_status[0].Message }}
+            {% endif %}
+          {% else %}
+            ❓ Unable to determine host status
+          {% endif %}
+    - name: Display SQL Port Status
+      debug:
+        msg: |
+          🔌 **SQL Server Port Check ({{ sql_port }})**:
+          {% if sql_port_status_fact.SQLPortStatus is defined and sql_port_status_fact.SQLPortStatus == 'UP' %}
+            ✅ SQL Server is listening on port {{ sql_port }}.
+          {% else %}
+            🚨 **ALERT: SQL Server port {{ sql_port }} is DOWN!**
+            - Possible reasons:
+              - SQL Server is stopped
+              - Firewall is blocking the port
+              - Network issues
+            - Suggested Fix:
+              - Ensure SQL Server service is running
+              - Check firewall and network settings
+              - Verify SQL Server configuration (`SQL Server Configuration Manager`)
+          {% endif %}
+
     - name: Check if MS SQL Port is Open
       win_shell: |
         $tcpConnection = Get-NetTCPConnection -LocalPort {{ sql_port }} -State Listen -ErrorAction SilentlyContinue
@@ -268,51 +315,4 @@
           {% else %}
             ✅ No errors found in SQL Server logs.
           {% endif %}
-    - name: Check if host is reachable
-      win_shell: |
-        try {
-          $targetHost = "{{ inventory_hostname }}"
-          $pingResult = Test-Connection -ComputerName $targetHost -Count 1 -Quiet
-          if ($pingResult) {
-            Write-Output '[{"Status": "Success", "Message": "Host is up and reachable"}]'
-          } else {
-            Write-Output '[{"Status": "Failed", "Message": "Host is not reachable"}]'
-          }
-        } catch {
-          Write-Output '[{"Status": "Error", "Message": "' + $_.Exception.Message + '"}]'
-        }
-      register: host_check
-      ignore_errors: yes
-    - name: Display Host Reachability Results
-      debug:
-        msg: |
-          🖥️ Host Status Check:
-          {% if host_check.stdout is defined %}
-            {% set host_status = host_check.stdout | from_json %}
-            {% if host_status[0].Status == "Success" %}
-              ✅ {{ host_status[0].Message }}
-            {% else %}
-              ❌ {{ host_status[0].Message }}
-            {% endif %}
-          {% else %}
-            ❓ Unable to determine host status
-          {% endif %}
-    - name: Display SQL Port Status
-      debug:
-        msg: |
-          🔌 **SQL Server Port Check ({{ sql_port }})**:
-          {% if sql_port_status_fact.SQLPortStatus is defined and sql_port_status_fact.SQLPortStatus == 'UP' %}
-            ✅ SQL Server is listening on port {{ sql_port }}.
-          {% else %}
-            🚨 **ALERT: SQL Server port {{ sql_port }} is DOWN!**
-            - Possible reasons:
-              - SQL Server is stopped
-              - Firewall is blocking the port
-              - Network issues
-            - Suggested Fix:
-              - Ensure SQL Server service is running
-              - Check firewall and network settings
-              - Verify SQL Server configuration (`SQL Server Configuration Manager`)
-          {% endif %}
-
-    # Existing tasks remain unchanged...
+    
