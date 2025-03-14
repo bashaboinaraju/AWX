@@ -38,6 +38,21 @@
           {% else %}
             ❓ Unable to determine host status
           {% endif %}
+    - name: Check if MS SQL Port is Open
+      win_shell: |
+        $tcpConnection = Get-NetTCPConnection -LocalPort {{ sql_port }} -State Listen -ErrorAction SilentlyContinue
+        if ($tcpConnection) {
+          Write-Output '{"SQLPortStatus": "UP"}'
+        } else {
+          Write-Output '{"SQLPortStatus": "DOWN"}'
+        }
+      register: sql_port_status
+      ignore_errors: yes
+
+    - name: Convert SQL Port Status Output to JSON
+      set_fact:
+        sql_port_status_fact: "{{ sql_port_status.stdout | default('{}') | from_json }}"
+
     - name: Display SQL Port Status
       debug:
         msg: |
@@ -56,28 +71,6 @@
               - Verify SQL Server configuration (`SQL Server Configuration Manager`)
           {% endif %}
 
-    - name: Check if MS SQL Port is Open
-      win_shell: |
-        $tcpConnection = Get-NetTCPConnection -LocalPort {{ sql_port }} -State Listen -ErrorAction SilentlyContinue
-        if ($tcpConnection) {
-          Write-Output '{"SQLPortStatus": "UP"}'
-        } else {
-          Write-Output '{"SQLPortStatus": "DOWN"}'
-        }
-      register: sql_port_status
-      ignore_errors: yes
-
-    - name: Convert SQL Port Status Output to JSON
-      set_fact:
-        sql_port_status_fact: "{{ sql_port_status.stdout | default('{}') | from_json }}"
-    - name: Get Disk Space Utilization
-      win_shell: |
-        try {
-          $disks = Get-WmiObject Win32_LogicalDisk | Select-Object DeviceID, VolumeName, Size, FreeSpace | ConvertTo-Json -Compress -Depth 2
-          if (-not $disks) { Write-Output '[]' } else { Write-Output $disks }
-        } catch {
-          Write-Output '[{"Error": "Failed to retrieve disk info"}]'
-        }
       register: disk_space
       ignore_errors: yes
  
