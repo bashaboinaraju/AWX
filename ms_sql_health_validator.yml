@@ -1,3 +1,4 @@
+
 ---
 - name: SQL Server Health Check and Maintenance
   hosts: 10.112.0.10
@@ -76,7 +77,8 @@
         } catch {
           Write-Output '[{"Error": "' + $_.Exception.Message + '"}]'
         }
-     
+      register: error_logs
+      ignore_errors: yes
  
     - name: Convert Outputs to JSON
       set_fact:
@@ -85,7 +87,7 @@
         deadlocks_fact: "{{ deadlocks.stdout | default('[]') | from_json }}"
         job_activities_fact: "{{ job_activities.stdout | default('[]') | from_json }}"
         disk_space_fact: "{{ disk_space.stdout | default('[]') | from_json }}"
-       
+        error_logs_fact: "{{ error_logs.stdout | default('[]') | from_json }}"
     
     - name: Display Formatted Results
       debug:
@@ -139,25 +141,88 @@
             [❌] No database health data available.
           {% endif %}
           
-    
+          📜 SQL Server Error Log:
+          {% if error_logs_fact is defined and error_logs_fact | length > 0 %}
+            {% for item in error_logs_fact | default([]) %}
+              - Date: {{ item.logdate | default('Unknown') }}
+                - Process: {{ item.processinfo | default('Unknown') }}
+                - Message: {{ item.text | default('No message') | truncate(100) }}
+            {% endfor %}
+          {% else %}
+            [ℹ️] No errors found in SQL Server logs or error log data not available.
+          {% endif %}
+          
     - name: Display SQL Server Issues and Troubleshooting Suggestions
       debug:
         msg: |
-          🩺 **Database Health Check: OFFLINE Databases Only**
+          🩺 **Database Health Check:**
           {% if db_health_fact is defined and db_health_fact | length > 0 %}
-            {% for item in db_health_fact if item.Status == "OFFLINE" %}
-              - Database: {{ item.DatabaseName }}
-                🚨 **ALERT: Database {{ item.DatabaseName }} is OFFLINE!**
-                - Possible reasons:
-                  - Manually taken offline
-                  - Storage or corruption issues
-                  - SQL Server restart
-                - Suggested Fix:
-                  - `ALTER DATABASE {{ item.DatabaseName }} SET ONLINE;`
-                  - Check storage space and error logs
+            {% for item in db_health_fact %}
+              {% if item.Status != "ONLINE" %}
+                - Database: {{ item.DatabaseName }}
+                  - Status: {{ item.Status }}
+                {% if item.Status == "OFFLINE" %}
+                  🚨 **ALERT: Database {{ item.DatabaseName }} is OFFLINE!**
+                  - Possible reasons:
+                    - Manually taken offline
+                    - Storage or corruption issues
+                    - SQL Server restart
+                  - Suggested Fix:
+                    - `ALTER DATABASE {{ item.DatabaseName }} SET ONLINE;`
+                    - Check storage space and error logs
+                {% endif %}
+              {% endif %}
             {% endfor %}
+            {% if db_health_fact | selectattr('Status', 'ne', 'ONLINE') | list | length == 0 %}
+              ✅ All databases are ONLINE.
+            {% endif %}
           {% else %}
-            ❌ No offline databases detected.
+            ❌ No database health data available.
           {% endif %}
-
-     
+          
+          💾 **Disk Space Check:**
+          {% for item in disk_space_fact if item is mapping and 'DeviceID' in item and 'FreeSpace' in item %}
+            {% set free_pct = (item.FreeSpace|float / item.Size|float * 100)|round(2) %}
+            {% if free_pct < 10 %}
+              🚨 **ALERT: Low disk space on {{ item.DeviceID }}!**
+              - {{ free_pct }}% free ({{ (item.FreeSpace|int / 1073741824)|round(2) }} GB)
+              - Suggested Fix:
+                - Clean up log files, temp files
+                - Review database file growth
+                - Consider adding storage
+            {% endif %}
+          {% else %}
+            ✅ All drives have sufficient disk space.
+          {% endfor %}
+          
+          🔒 **Deadlock Check:**
+          {% if (deadlocks_fact.Deadlocks|default(0)|int) > 0 %}
+            🚨 **ALERT: {{ deadlocks_fact.Deadlocks }} deadlocks detected!**
+            - Suggested Fix:
+              - Review transaction isolation levels
+              - Optimize queries with high lock duration
+              - Consider using NOLOCK hint for read-only operations
+          {% else %}
+            ✅ No deadlocks detected.
+          {% endif %}
+          
+          📜 **Error Log Analysis:**
+          {% if error_logs_fact is defined and error_logs_fact|length > 0 %}
+            {% set error_found = false %}
+            {% for item in error_logs_fact %}
+              {% if item.text is defined and item.text|lower is search('severity: [1-9][0-9]') %}
+                {% set error_found = true %}
+                🚨 **ALERT: High severity error detected!**
+                - {{ item.text|truncate(150) }}
+                - Time: {{ item.logdate }}
+                - Suggested Fix:
+                  - Review SQL Server error log details
+                  - Check for related issues in Windows Event Log
+              {% endif %}
+            {% endfor %}
+            {% if not error_found %}
+              ✅ No critical errors found in logs.
+            {% endif %}
+          {% else %}
+            ✅ No errors found in SQL Server logs.
+          {% endif %}
