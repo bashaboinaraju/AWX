@@ -71,8 +71,7 @@
               - Verify SQL Server configuration (`SQL Server Configuration Manager`)
           {% endif %}
 
-      register: disk_space
-      ignore_errors: yes
+     
  
     - name: Get Database Space Utilization
       win_shell: |
