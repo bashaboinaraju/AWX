@@ -1,9 +1,9 @@
 ---
 - name: SQL Server Health Check and Maintenance
-  hosts: 10.112.0.10
+  hosts: "{{ inventory_hostname }}"
   gather_facts: no
   vars:
-    sql_instance: "10.112.0.10"
+    sql_instance: "{{ inventory_hostname }}"
     sql_user: "{{ sql_user }}"
     sql_password: "{{ sql_password }}"
     sql_port: 1433
