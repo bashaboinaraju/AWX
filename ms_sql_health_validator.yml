@@ -6,7 +6,7 @@
     sql_instance: "10.112.0.10"
     sql_user: "{{ sql_user }}"
     sql_password: "{{ sql_password }}"
-    sql_port: 1430
+    sql_port: 1433
 
   tasks:
     - name: Check if MS SQL Port is Open
@@ -267,6 +267,35 @@
             {% endif %}
           {% else %}
             ✅ No errors found in SQL Server logs.
+          {% endif %}
+    - name: Check if host is reachable
+      win_shell: |
+        try {
+          $targetHost = "{{ inventory_hostname }}"
+          $pingResult = Test-Connection -ComputerName $targetHost -Count 1 -Quiet
+          if ($pingResult) {
+            Write-Output '[{"Status": "Success", "Message": "Host is up and reachable"}]'
+          } else {
+            Write-Output '[{"Status": "Failed", "Message": "Host is not reachable"}]'
+          }
+        } catch {
+          Write-Output '[{"Status": "Error", "Message": "' + $_.Exception.Message + '"}]'
+        }
+      register: host_check
+      ignore_errors: yes
+    - name: Display Host Reachability Results
+      debug:
+        msg: |
+          🖥️ Host Status Check:
+          {% if host_check.stdout is defined %}
+            {% set host_status = host_check.stdout | from_json %}
+            {% if host_status[0].Status == "Success" %}
+              ✅ {{ host_status[0].Message }}
+            {% else %}
+              ❌ {{ host_status[0].Message }}
+            {% endif %}
+          {% else %}
+            ❓ Unable to determine host status
           {% endif %}
     - name: Display SQL Port Status
       debug:
