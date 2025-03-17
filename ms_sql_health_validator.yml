@@ -239,60 +239,60 @@
             [ℹ️] No errors found in SQL Server logs or error log data not available.
           {% endif %}
           
-   
+    
     - name: Display SQL Server Issues and Troubleshooting Suggestions
       debug:
-      msg: |
-        🩺 **Database Health Check:**
-        {% if db_health_fact is defined and db_health_fact | length > 0 %}
-          {% for item in db_health_fact %}
-            {% if item.Status != "ONLINE" %}
-              - Database: {{ item.DatabaseName }}
-                - Status: {{ item.Status }}
-              {% if item.Status == "OFFLINE" %}
-                🚨 **ALERT: Database {{ item.DatabaseName }} is OFFLINE!**
-                - Possible reasons:
-                  - Manually taken offline
-                  - Storage or corruption issues
-                  - SQL Server restart
-                - Suggested Fix:
-                  - `ALTER DATABASE {{ item.DatabaseName }} SET ONLINE;`
-                  - Check storage space and error logs
+        msg: |
+          🩺 **Database Health Check:**
+          {% if db_health_fact is defined and db_health_fact | length > 0 %}
+            {% for item in db_health_fact %}
+              {% if item.Status != "ONLINE" %}
+                - Database: {{ item.DatabaseName }}
+                  - Status: {{ item.Status }}
+                {% if item.Status == "OFFLINE" %}
+                  🚨 **ALERT: Database {{ item.DatabaseName }} is OFFLINE!**
+                  - Possible reasons:
+                    - Manually taken offline
+                    - Storage or corruption issues
+                    - SQL Server restart
+                  - Suggested Fix:
+                    - `ALTER DATABASE {{ item.DatabaseName }} SET ONLINE;`
+                    - Check storage space and error logs
+                {% endif %}
               {% endif %}
+            {% endfor %}
+            {% if db_health_fact | selectattr('Status', 'ne', 'ONLINE') | list | length == 0 %}
+              ✅ All databases are ONLINE.
             {% endif %}
-          {% endfor %}
-          {% if db_health_fact | selectattr('Status', 'ne', 'ONLINE') | list | length == 0 %}
-            ✅ All databases are ONLINE.
+          {% else %}
+            ❌ No database health data available.
           {% endif %}
-        {% else %}
-          ❌ No database health data available.
-        {% endif %}
-        
-        💾 **Disk Space Check:**
-        {% if disk_space.stdout is defined %}
-          {% set disk_data = disk_space.stdout | from_json %}
-          {% for disk in disk_data %}
-            {% set free_pct = ((disk.FreeSpace | float / disk.Size | float) * 100) | round(2) %}
-            {% if free_pct < 10 %}
-              🚨 **ALERT: Low disk space on {{ disk.DeviceID }}!**
-              - {{ free_pct }}% free ({{ (disk.FreeSpace | int / 1073741824) | round(2) }} GB)
-              - Suggested Fix:
-                - Clean up log files, temp files
-                - Review database file growth
-                - Consider adding storage
-            {% endif %}
-          {% endfor %}
-        {% else %}
-          ✅ All drives have sufficient disk space.
-        {% endif %}
-        
-        🔒 **Deadlock Check:**
-        {% if (deadlocks_fact.Deadlocks|default(0)|int) > 0 %}
-          🚨 **ALERT: {{ deadlocks_fact.Deadlocks }} deadlocks detected!**
-          - Suggested Fix:
-            - Review transaction isolation levels
-            - Optimize queries with high lock duration
-            - Check application transaction handling
-        {% else %}
-          ✅ No deadlocks detected.
-        {% endif %}
+          
+          💾 **Disk Space Check:**
+          {% if disk_space.stdout is defined %}
+            {% set disk_data = disk_space.stdout | from_json %}
+            {% for disk in disk_data %}
+              {% set free_pct = ((disk.FreeSpace | float / disk.Size | float) * 100) | round(2) %}
+              {% if free_pct < 10 %}
+                🚨 **ALERT: Low disk space on {{ disk.DeviceID }}!**
+                - {{ free_pct }}% free ({{ (disk.FreeSpace | int / 1073741824) | round(2) }} GB)
+                - Suggested Fix:
+                  - Clean up log files, temp files
+                  - Review database file growth
+                  - Consider adding storage
+              {% endif %}
+            {% endfor %}
+          {% else %}
+            ✅ All drives have sufficient disk space.
+          {% endif %}
+          
+          🔒 **Deadlock Check:**
+          {% if (deadlocks_fact.Deadlocks|default(0)|int) > 0 %}
+            🚨 **ALERT: {{ deadlocks_fact.Deadlocks }} deadlocks detected!**
+            - Suggested Fix:
+              - Review transaction isolation levels
+              - Optimize queries with high lock duration
+              - Check application transaction handling
+          {% else %}
+            ✅ No deadlocks detected.
+          {% endif %}
