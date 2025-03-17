@@ -148,7 +148,13 @@
         }
       register: error_logs
       ignore_errors: yes
- 
+
+    - name: Get Disk Space Information
+      win_shell: |
+        Get-WmiObject Win32_LogicalDisk | Select-Object DeviceID, @{Name="Size";Expression={$_.Size}}, @{Name="FreeSpace";Expression={$_.FreeSpace}} | ConvertTo-Json -Compress
+      register: disk_space
+      ignore_errors: yes
+
     - name: Convert Outputs to JSON
       set_fact:
         db_space_fact: "{{ db_space.stdout | default('[]') | from_json }}"
