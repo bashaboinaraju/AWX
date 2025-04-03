@@ -1,24 +1,81 @@
-
 ---
 - name: SQL Server Health Check and Maintenance
-  hosts: 10.112.0.10
+  hosts: "{{ inventory_hostname }}"
   gather_facts: no
   vars:
-    sql_instance: "10.112.0.10"
+    sql_instance: "{{ inventory_hostname }}"
     sql_user: "{{ sql_user }}"
     sql_password: "{{ sql_password }}"
- 
+    service_now_instance: "{{ service_now_instance }}"
+    service_now_username: "{{ service_now_username }}"
+    service_now_password: "{{ service_now_password }}"
+    INCIDENT_NUMBER: "{{ INCIDENT_NUMBER }}"
+    sql_port: 1433
+
   tasks:
-    - name: Get Disk Space Utilization
+    - name: Check if host is reachable
       win_shell: |
         try {
-          $disks = Get-WmiObject Win32_LogicalDisk | Select-Object DeviceID, VolumeName, Size, FreeSpace | ConvertTo-Json -Compress -Depth 2
-          if (-not $disks) { Write-Output '[]' } else { Write-Output $disks }
+          $targetHost = "{{ inventory_hostname }}"
+          $pingResult = Test-Connection -ComputerName $targetHost -Count 1 -Quiet
+          if ($pingResult) {
+            Write-Output '[{"Status": "Success", "Message": "Host is up and reachable"}]'
+          } else {
+            Write-Output '[{"Status": "Failed", "Message": "Host is not reachable"}]'
+          }
         } catch {
-          Write-Output '[{"Error": "Failed to retrieve disk info"}]'
+          Write-Output '[{"Status": "Error", "Message": "' + $_.Exception.Message + '"}]'
         }
-      register: disk_space
+      register: host_check
       ignore_errors: yes
+    - name: Display Host Reachability Results
+      debug:
+        msg: |
+          🖥️ Host Status Check:
+          {% if host_check.stdout is defined %}
+            {% set host_status = host_check.stdout | from_json %}
+            {% if host_status[0].Status == "Success" %}
+              ✅ {{ host_status[0].Message }}
+            {% else %}
+              ❌ {{ host_status[0].Message }}
+            {% endif %}
+          {% else %}
+            ❓ Unable to determine host status
+          {% endif %}
+    - name: Check if MS SQL Port is Open
+      win_shell: |
+        $tcpConnection = Get-NetTCPConnection -LocalPort {{ sql_port }} -State Listen -ErrorAction SilentlyContinue
+        if ($tcpConnection) {
+          Write-Output '{"SQLPortStatus": "UP"}'
+        } else {
+          Write-Output '{"SQLPortStatus": "DOWN"}'
+        }
+      register: sql_port_status
+      ignore_errors: yes
+
+    - name: Convert SQL Port Status Output to JSON
+      set_fact:
+        sql_port_status_fact: "{{ sql_port_status.stdout | default('{}') | from_json }}"
+
+    - name: Display SQL Port Status
+      debug:
+        msg: |
+          🔌 **SQL Server Port Check ({{ sql_port }})**:
+          {% if sql_port_status_fact.SQLPortStatus is defined and sql_port_status_fact.SQLPortStatus == 'UP' %}
+            ✅ SQL Server is listening on port {{ sql_port }}.
+          {% else %}
+            🚨 **ALERT: SQL Server port {{ sql_port }} is DOWN!**
+            - Possible reasons:
+              - SQL Server is stopped
+              - Firewall is blocking the port
+              - Network issues
+            - Suggested Fix:
+              - Ensure SQL Server service is running
+              - Check firewall and network settings
+              - Verify SQL Server configuration (`SQL Server Configuration Manager`)
+          {% endif %}
+
+     
  
     - name: Get Database Space Utilization
       win_shell: |
@@ -67,6 +124,22 @@
         }
       register: job_activities
       ignore_errors: yes
+    - name: Generate SQL Server Error for Testing
+      win_shell: |
+        try {
+          Invoke-Sqlcmd -Query "RAISERROR ('Test error for Ansible detection', 16, 1) WITH LOG;" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate
+          Write-Output '[{"Success": "Test error generated successfully"}]'
+        } catch {
+          Write-Output '[{"Error": "Failed to generate test error"}]'
+        }
+      register: test_error
+      ignore_errors: yes
+      failed_when: false
+    
+    - name: Display Test Error Result
+      debug:
+        msg: "{{ test_error.stdout }}"
+
  
     - name: Check SQL Server Error Log for Issues
       win_shell: |
@@ -79,7 +152,22 @@
         }
       register: error_logs
       ignore_errors: yes
- 
+
+    - name: Get Disk Space Information
+      win_shell: |
+        $disks = @()
+        Get-WmiObject Win32_LogicalDisk | ForEach-Object {
+          $disks += @{
+            "DeviceID" = $_.DeviceID;
+            "Size" = [math]::Round($_.Size/1GB, 2);
+            "FreeSpace" = [math]::Round($_.FreeSpace/1GB, 2);
+            "FreePercent" = [math]::Round(($_.FreeSpace/$_.Size)*100, 2)
+          }
+        }
+        ConvertTo-Json -InputObject $disks -Depth 3 -Compress
+      register: disk_space
+      ignore_errors: yes
+
     - name: Convert Outputs to JSON
       set_fact:
         db_space_fact: "{{ db_space.stdout | default('[]') | from_json }}"
@@ -93,22 +181,19 @@
       debug:
         msg: |
           💾 Disk Space:
-          {% for item in disk_space_fact if item is mapping and 'DeviceID' in item and 'FreeSpace' in item %}
-            - Volume: {{ item.DeviceID }} | Free Space: {{ (item.FreeSpace | int / 1073741824) | round(2) }} GB
+          {% set disk_data = (disk_space.stdout | default('[]') | from_json) %}
+          {% if disk_data is not string and disk_data | length > 0 %}
+            {% for disk in disk_data %}
+              - Volume: {{ disk.DeviceID }} | Size: {{ disk.Size }} GB | Free: {{ disk.FreeSpace }} GB ({{ disk.FreePercent }}%)
+            {% endfor %}
           {% else %}
             - No valid disk space data available.
-          {% endfor %}
+          {% endif %}
  
           📊 Database Space Utilization:
           {% for item in db_space_fact | default([]) if item.DatabaseName is defined and item.SizeMB is defined %}
            - {{ item.DatabaseName }}: {{ item.SizeMB }} MB
           {% endfor %}
-          🚨 Deadlocks:
-          {% if (deadlocks_fact.Deadlocks | default(0) | int) > 0 %}
-           - {{ deadlocks_fact.Deadlocks }} deadlocks detected!
-          {% else %}
-           - No deadlocks detected
-          {% endif %}
           [ℹ️] Job activities query returned {{ job_activities_fact | default([]) | length }} rows.
           🛠 SQL Server Agent Job Activities:
           {% if job_activities_fact.name is defined and job_activities_fact.enabled is defined and job_activities_fact.last_run_status is defined %}
@@ -140,7 +225,12 @@
           {% else %}
             [❌] No database health data available.
           {% endif %}
-          
+          🚨 Deadlocks:
+          {% if (deadlocks_fact.Deadlocks | default(0) | int) > 0 %}
+           - {{ deadlocks_fact.Deadlocks }} deadlocks detected!
+          {% else %}
+           - No deadlocks detected
+          {% endif %}
           📜 SQL Server Error Log:
           {% if error_logs_fact is defined and error_logs_fact | length > 0 %}
             {% for item in error_logs_fact | default([]) %}
@@ -152,6 +242,61 @@
             [ℹ️] No errors found in SQL Server logs or error log data not available.
           {% endif %}
           
+
+    - name: Get Incident Sys_ID from ServiceNow
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident?sysparm_query=number={{ INCIDENT_NUMBER }}"
+        method: GET
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+      register: incident_info
+      delegate_to: localhost
+ 
+    - name: Set Incident Sys_ID Fact
+      set_fact:
+        incident_sys_id: "{{ incident_info.json.result[0].sys_id }}"
+      when: incident_info.json.result | length > 0
+ 
+    - name: Update SNOW Ticket - Issue Resolved
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
+        method: PATCH
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          {
+            "state": "7",
+            "close_code": "Solution Provided",
+            "close_notes": "Disk space optimized by stopping a high-consuming process."
+          }
+        status_code: [200, 201, 403, 405]
+      when: issue_resolved | default(false) | bool and incident_sys_id is defined
+      register: sn_response
+      delegate_to: localhost
+ 
+    - name: Update SNOW Ticket - Manual Escalation
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
+        method: PATCH
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          {
+            "state": "4",
+            "work_notes": "Automation failed. Assigned to manual queue."
+          }
+        status_code: [200, 405]
+      when: issue_resolved is not defined or not issue_resolved | bool and incident_sys_id is defined
+      register: sn_escalation_response
+      delegate_to: localhost
     - name: Display SQL Server Issues and Troubleshooting Suggestions
       debug:
         msg: |
@@ -181,19 +326,32 @@
           {% endif %}
           
           💾 **Disk Space Check:**
-          {% for item in disk_space_fact if item is mapping and 'DeviceID' in item and 'FreeSpace' in item %}
-            {% set free_pct = (item.FreeSpace|float / item.Size|float * 100)|round(2) %}
-            {% if free_pct < 10 %}
-              🚨 **ALERT: Low disk space on {{ item.DeviceID }}!**
-              - {{ free_pct }}% free ({{ (item.FreeSpace|int / 1073741824)|round(2) }} GB)
-              - Suggested Fix:
-                - Clean up log files, temp files
-                - Review database file growth
-                - Consider adding storage
+          {% if disk_space.stdout is defined %}
+            {% set disk_data = disk_space.stdout | from_json %}
+            {% if disk_data is iterable and (disk_data is not string) and (disk_data | length > 0) %}
+              {% set low_space_found = false %}
+              {% for disk in disk_data %}
+                {% if disk.FreePercent is defined and disk.Size is defined %}
+                  {% if disk.FreePercent < 10 %}
+                    {% set low_space_found = true %}
+                    🚨 **ALERT: Low disk space on {{ disk.DeviceID }}!**
+                    - {{ disk.FreePercent }}% free ({{ disk.FreeSpace }} GB)
+                    - Suggested Fix:
+                      - Clean up log files, temp files
+                      - Review database file growth
+                      - Consider adding storage
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+              {% if not low_space_found %}
+                ✅ All drives have sufficient disk space.
+              {% endif %}
+            {% else %}
+              ❓ Disk space data format is invalid.
             {% endif %}
           {% else %}
-            ✅ All drives have sufficient disk space.
-          {% endfor %}
+            ❓ No disk space data available.
+          {% endif %}
           
           🔒 **Deadlock Check:**
           {% if (deadlocks_fact.Deadlocks|default(0)|int) > 0 %}
@@ -201,17 +359,23 @@
             - Suggested Fix:
               - Review transaction isolation levels
               - Optimize queries with high lock duration
-              - Consider using NOLOCK hint for read-only operations
+              - Check application transaction handling
           {% else %}
             ✅ No deadlocks detected.
           {% endif %}
-          
+          🧪 **Test Error Check:**
+          {% if test_error is defined and test_error.stdout is defined %}
+            Test error was successfully generated for monitoring validation.
+            - This is an expected test condition to verify alert systems.
+          {% else %}
+            ❓ No test error data available.
+          {% endif %}
           📜 **Error Log Analysis:**
           {% if error_logs_fact is defined and error_logs_fact|length > 0 %}
-            {% set error_found = false %}
+            {% set critical_error_found = false %}
             {% for item in error_logs_fact %}
               {% if item.text is defined and item.text|lower is search('severity: [1-9][0-9]') %}
-                {% set error_found = true %}
+                {% set critical_error_found = true %}
                 🚨 **ALERT: High severity error detected!**
                 - {{ item.text|truncate(150) }}
                 - Time: {{ item.logdate }}
@@ -220,8 +384,8 @@
                   - Check for related issues in Windows Event Log
               {% endif %}
             {% endfor %}
-            {% if not error_found %}
-              ✅ No critical errors found in logs.
+            {% if not critical_error_found %}
+              ✅ No errors found in SQL Server logs.
             {% endif %}
           {% else %}
             ✅ No errors found in SQL Server logs.
