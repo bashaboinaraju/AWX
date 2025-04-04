@@ -6,10 +6,6 @@
     sql_instance: "{{ inventory_hostname }}"
     sql_user: "{{ sql_user }}"
     sql_password: "{{ sql_password }}"
-    service_now_instance: "{{ service_now_instance }}"
-    service_now_username: "{{ service_now_username }}"
-    service_now_password: "{{ service_now_password }}"
-    INCIDENT_NUMBER: "{{ INCIDENT_NUMBER }}"
     sql_port: 1433
 
   tasks:
@@ -325,57 +321,4 @@
             ✅ No errors found in SQL Server logs.
           {% endif %}
 
-    - name: Get Incident Sys_ID from ServiceNow
-      uri:
-        url: "https://{{ service_now_instance }}/api/now/table/incident?sysparm_query=number={{ INCIDENT_NUMBER }}"
-        method: GET
-        force_basic_auth: yes
-        headers:
-          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
-          Content-Type: "application/json"
-      register: incident_info
-      delegate_to: localhost
- 
-    - name: Set Incident Sys_ID Fact
-      set_fact:
-        incident_sys_id: "{{ incident_info.json.result[0].sys_id }}"
-      when: incident_info.json.result | length > 0
- 
-    - name: Update SNOW Ticket - Issue Resolved
-      uri:
-        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
-        method: PATCH
-        force_basic_auth: yes
-        headers:
-          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          {
-            "state": "7",
-            "close_code": "Solution Provided",
-            "close_notes": "Disk space optimized by stopping a high-consuming process."
-          }
-        status_code: [200, 201, 403, 405]
-      when: issue_resolved | default(false) | bool and incident_sys_id is defined
-      register: sn_response
-      delegate_to: localhost
- 
-    - name: Update SNOW Ticket - Manual Escalation
-      uri:
-        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
-        method: PATCH
-        force_basic_auth: yes
-        headers:
-          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          {
-            "state": "4",
-            "work_notes": "Automation failed. Assigned to manual queue."
-          }
-        status_code: [200, 405]
-      when: issue_resolved is not defined or not issue_resolved | bool and incident_sys_id is defined
-      register: sn_escalation_response
-      delegate_to: localhost
+   
