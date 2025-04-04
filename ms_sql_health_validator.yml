@@ -1,4 +1,4 @@
-  ---
+---
 - name: SQL Server Health Check and Maintenance
   hosts: "{{ inventory_hostname }}"
   gather_facts: no
