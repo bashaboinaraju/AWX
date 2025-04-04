@@ -137,21 +137,7 @@
       ignore_errors: yes
       failed_when: false
     
-    - name: Display Test Error Result
-      debug:
-        msg: "{{ test_error.stdout }}"
-
-    - name: Check SQL Server Error Log for Issues
-      win_shell: |
-        try {
-          $query = "SELECT TOP 10 logdate, processinfo, text FROM sys.fn_get_audit_file('C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\Log\*.sqlaudit', DEFAULT, DEFAULT) WHERE text LIKE '%error%' OR text LIKE '%failed%' OR text LIKE '%severity%' ORDER BY logdate DESC;"
-          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress -Depth 3
-          if (-not $result) { Write-Output '[]' } else { Write-Output $result }
-        } catch {
-          Write-Output '[{"Error": "' + $_.Exception.Message + '"}]'
-        }
-      register: error_logs
-      ignore_errors: yes
+    
 
     - name: Get Disk Space Information
       win_shell: |
@@ -174,7 +160,7 @@
         deadlocks_fact: "{{ deadlocks.stdout | default('[]') | from_json }}"
         job_activities_fact: "{{ job_activities.stdout | default('[]') | from_json }}"
         disk_space_fact: "{{ disk_space.stdout | default('[]') | from_json }}"
-        error_logs_fact: "{{ error_logs.stdout | default('[]') | from_json }}"
+        
 
  
     
