@@ -6,10 +6,10 @@
     sql_instance: "{{ inventory_hostname }}"
     sql_user: "{{ sql_user }}"
     sql_password: "{{ sql_password }}"
-    INCIDENT_NUMBER: "{{ INCIDENT_NUMBER }}"
     service_now_instance: "{{ service_now_instance }}"
     service_now_username: "{{ service_now_username }}"
     service_now_password: "{{ service_now_password }}"
+    INCIDENT_NUMBER: "{{ INCIDENT_NUMBER }}"
     sql_port: 1433
 
   tasks:
@@ -28,6 +28,7 @@
         }
       register: host_check
       ignore_errors: yes
+
     - name: Display Host Reachability Results
       debug:
         msg: |
@@ -42,6 +43,7 @@
           {% else %}
             ❓ Unable to determine host status
           {% endif %}
+
     - name: Check if MS SQL Port is Open
       win_shell: |
         $tcpConnection = Get-NetTCPConnection -LocalPort {{ sql_port }} -State Listen -ErrorAction SilentlyContinue
@@ -75,8 +77,6 @@
               - Verify SQL Server configuration (`SQL Server Configuration Manager`)
           {% endif %}
 
-     
- 
     - name: Get Database Space Utilization
       win_shell: |
         try {
@@ -124,6 +124,7 @@
         }
       register: job_activities
       ignore_errors: yes
+
     - name: Generate SQL Server Error for Testing
       win_shell: |
         try {
@@ -136,22 +137,7 @@
       ignore_errors: yes
       failed_when: false
     
-    - name: Display Test Error Result
-      debug:
-        msg: "{{ test_error.stdout }}"
-
- 
-    - name: Check SQL Server Error Log for Issues
-      win_shell: |
-        try {
-          $query = "SELECT TOP 10 logdate, processinfo, text FROM sys.fn_get_audit_file('C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\Log\*.sqlaudit', DEFAULT, DEFAULT) WHERE text LIKE '%error%' OR text LIKE '%failed%' OR text LIKE '%severity%' ORDER BY logdate DESC;"
-          $result = Invoke-Sqlcmd -Query "$query" -ServerInstance "{{ sql_instance }}" -Username "{{ sql_user }}" -Password "{{ sql_password }}" -TrustServerCertificate | ConvertTo-Json -Compress -Depth 3
-          if (-not $result) { Write-Output '[]' } else { Write-Output $result }
-        } catch {
-          Write-Output '[{"Error": "' + $_.Exception.Message + '"}]'
-        }
-      register: error_logs
-      ignore_errors: yes
+    
 
     - name: Get Disk Space Information
       win_shell: |
@@ -167,7 +153,6 @@
         ConvertTo-Json -InputObject $disks -Depth 3 -Compress
       register: disk_space
       ignore_errors: yes
-
     - name: Convert Outputs to JSON
       set_fact:
         db_space_fact: "{{ db_space.stdout | default('[]') | from_json }}"
@@ -175,7 +160,9 @@
         deadlocks_fact: "{{ deadlocks.stdout | default('[]') | from_json }}"
         job_activities_fact: "{{ job_activities.stdout | default('[]') | from_json }}"
         disk_space_fact: "{{ disk_space.stdout | default('[]') | from_json }}"
-        error_logs_fact: "{{ error_logs.stdout | default('[]') | from_json }}"
+        
+
+ 
     
     - name: Display Formatted Results
       debug:
@@ -242,58 +229,6 @@
             [ℹ️] No errors found in SQL Server logs or error log data not available.
           {% endif %}
           
-
-    - name: Get Incident Sys_ID from ServiceNow
-      uri:
-        url: "https://{{ service_now_instance }}/api/now/table/incident?sysparm_query=number={{ INCIDENT_NUMBER }}"
-        method: GET
-        force_basic_auth: yes
-        headers:
-          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
-          Content-Type: "application/json"
-      register: incident_info
-      delegate_to: localhost
-    - name: Set Incident Sys_ID Fact
-      set_fact:
-        incident_sys_id: "{{ incident_info.json.result[0].sys_id }}"
-      when: incident_info.json.result | length > 0
-    - name: Update SNOW Ticket - Issue Resolved
-      uri:
-        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
-        method: PATCH
-        force_basic_auth: yes
-        headers:
-          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          {
-            "state": "7",
-            "close_code": "Solution Provided",
-            "close_notes": "Disk space optimized by stopping a high-consuming process."
-          }
-        status_code: [200, 201, 403, 405]
-      when: issue_resolved | default(false) | bool and incident_sys_id is defined
-      register: sn_response
-      delegate_to: localhost
-    - name: Update SNOW Ticket - Manual Escalation
-      uri:
-        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
-        method: PATCH
-        force_basic_auth: yes
-        headers:
-          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
-          Content-Type: "application/json"
-        body_format: json
-        body:
-          {
-            "state": "4",
-            "work_notes": "Automation failed. Assigned to manual queue."
-          }
-        status_code: [200, 405]
-      when: issue_resolved is not defined or not issue_resolved | bool and incident_sys_id is defined
-      register: sn_escalation_response
-      delegate_to: localhost
     - name: Display SQL Server Issues and Troubleshooting Suggestions
       debug:
         msg: |
@@ -360,6 +295,7 @@
           {% else %}
             ✅ No deadlocks detected.
           {% endif %}
+          
           🧪 **Test Error Check:**
           {% if test_error is defined and test_error.stdout is defined %}
             Test error was successfully generated for monitoring validation.
@@ -367,6 +303,7 @@
           {% else %}
             ❓ No test error data available.
           {% endif %}
+          
           📜 **Error Log Analysis:**
           {% if error_logs_fact is defined and error_logs_fact|length > 0 %}
             {% set critical_error_found = false %}
@@ -387,3 +324,58 @@
           {% else %}
             ✅ No errors found in SQL Server logs.
           {% endif %}
+
+    - name: Get Incident Sys_ID from ServiceNow
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident?sysparm_query=number={{ INCIDENT_NUMBER }}"
+        method: GET
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+      register: incident_info
+      delegate_to: localhost
+ 
+    - name: Set Incident Sys_ID Fact
+      set_fact:
+        incident_sys_id: "{{ incident_info.json.result[0].sys_id }}"
+      when: incident_info.json.result | length > 0
+ 
+    - name: Update SNOW Ticket - Issue Resolved
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
+        method: PATCH
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          {
+            "state": "7",
+            "close_code": "Solution Provided",
+            "close_notes": "Disk space optimized by stopping a high-consuming process."
+          }
+        status_code: [200, 201, 403, 405]
+      when: issue_resolved | default(false) | bool and incident_sys_id is defined
+      register: sn_response
+      delegate_to: localhost
+ 
+    - name: Update SNOW Ticket - Manual Escalation
+      uri:
+        url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
+        method: PATCH
+        force_basic_auth: yes
+        headers:
+          Authorization: "Basic {{ (service_now_username + ':' + service_now_password) | b64encode }}"
+          Content-Type: "application/json"
+        body_format: json
+        body:
+          {
+            "state": "4",
+            "work_notes": "Automation failed. Assigned to manual queue."
+          }
+        status_code: [200, 405]
+      when: issue_resolved is not defined or not issue_resolved | bool and incident_sys_id is defined
+      register: sn_escalation_response
+      delegate_to: localhost
