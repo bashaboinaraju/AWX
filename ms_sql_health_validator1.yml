@@ -170,12 +170,12 @@
 
     - name: Convert Outputs to JSON
       set_fact:
-        db_space_fact: "{{ db_space.stdout | default('[]') | from_json }}"
-        db_health_fact: "{{ db_health.stdout | default('[]') | from_json }}"
-        deadlocks_fact: "{{ deadlocks.stdout | default('[]') | from_json }}"
-        job_activities_fact: "{{ job_activities.stdout | default('[]') | from_json }}"
-        disk_space_fact: "{{ disk_space.stdout | default('[]') | from_json }}"
-        error_logs_fact: "{{ error_logs.stdout | default('[]') | from_json }}"
+        db_space_fact: "{{ db_space.stdout | default('[]') | regex_replace('[\\r\\n]', '') | from_json }}"
+        db_health_fact: "{{ db_health.stdout | default('[]') | regex_replace('[\\r\\n]', '') | from_json }}"
+        deadlocks_fact: "{{ deadlocks.stdout | default('[]') | regex_replace('[\\r\\n]', '') | from_json }}"
+        job_activities_fact: "{{ job_activities.stdout | default('[]') | regex_replace('[\\r\\n]', '') | from_json }}"
+        disk_space_fact: "{{ disk_space.stdout | default('[]') | regex_replace('[\\r\\n]', '') | from_json }}"
+        error_logs_fact: "{{ error_logs.stdout | default('[]') | regex_replace('[\\r\\n]', '') | from_json }}"
     
     - name: Display Formatted Results
       debug:
@@ -390,4 +390,3 @@
       when: issue_resolved is not defined or not issue_resolved | bool and incident_sys_id is defined
       register: sn_escalation_response
       delegate_to: localhost
-    
