@@ -10,6 +10,8 @@
     service_now_username: "{{ service_now_username }}"
     service_now_password: "{{ service_now_password }}"
     INCIDENT_NUMBER: "{{ INCIDENT_NUMBER }}"
+    sys_id:"{{ sys_id }}"
+    itsm_source:"{{ itsm_source }}"
     sql_port: 1433
 
   tasks:
