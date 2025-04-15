@@ -1,11 +1,11 @@
 ---
 - name: SQL Server Health Check and Maintenance
-  hosts: "{{ inventory_hostname }}"
+  hosts: "10.112.0.10"
   gather_facts: no
   vars:
-    sql_instance: "{{ inventory_hostname }}"
-    sql_user: "{{ sql_user }}"
-    sql_password: "{{ sql_password }}"
+    sql_instance: "10.112.0.10"
+    sql_user: "rajusql"
+    sql_password: "Raju@2002"
     service_now_instance: "{{ service_now_instance }}"
     service_now_username: "{{ service_now_username }}"
     service_now_password: "{{ service_now_password }}"
