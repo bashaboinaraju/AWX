@@ -19,7 +19,7 @@
     - name: Check if host is reachable
       win_shell: |
         try {
-          $targetHost = "{{ hosts }}"
+          $targetHost = "{{ inventory_hostname }}"
           $pingResult = Test-Connection -ComputerName $targetHost -Count 1 -Quiet
           if ($pingResult) {
             Write-Output '[{"Status": "Success", "Message": "Host is up and reachable"}]'
