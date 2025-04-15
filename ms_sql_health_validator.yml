@@ -9,11 +9,12 @@
     service_now_instance: "{{ service_now_instance }}"
     service_now_username: "{{ service_now_username }}"
     service_now_password: "{{ service_now_password }}"
-    INCIDENT_NUMBER: "{{ INCIDENT_NUMBER }}"
-    sys_id:"{{ sys_id }}"
-    itsm_source:"{{ itsm_source }}"
-    sql_port: 1433
+    sql_port: 1433 
 
+  tasks:
+    - name: Set dynamic variables from webhook payload
+      set_fact:
+        INCIDENT_NUMBER: "{{ awx_webhook_payload.INCIDENT_NUMBER }}"
   tasks:
     - name: Check if host is reachable
       win_shell: |
