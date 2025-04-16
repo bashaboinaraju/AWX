@@ -361,7 +361,7 @@
       debug:
         msg: "Retrieved incident sys_id: {{ incident_sys_id | default('Not found') }}"
 
-    # Always close the incident regardless of health check results
+    
     - name: Update ServiceNow Incident - Close Ticket
       uri:
         url: "https://{{ service_now_instance }}/api/now/table/incident/{{ incident_sys_id }}"
@@ -383,9 +383,7 @@
       delegate_to: localhost
       register: update_result
       
-    - name: Debug - Show ServiceNow update result
-      debug:
-        var: update_result
+    
         
     - name: Handle Missing Incident Number
       debug:
